@@ -1,0 +1,10 @@
+# Export config for the product tracking pipeline (owned by the growth team).
+# Changes here are deployed by the growth team's exporter, not this repo's CI.
+export: signups
+schedule: daily 04:00 UTC
+fields:
+  - user_id
+  - signup_date
+  - plan
+  - channel
+destination: data/raw/signups.csv

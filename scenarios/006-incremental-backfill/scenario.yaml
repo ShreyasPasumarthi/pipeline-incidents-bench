@@ -1,0 +1,48 @@
+id: "006-incremental-backfill"
+title: "Cents-normalization bug corrupts an incremental rollup; fixing the code is not enough — stale rows need a backfill"
+difficulty: hard
+tags: [logic-bug, git-cause, incremental, backfill, dbt, duckdb]
+
+pipeline:
+  run: run_pipeline.sh
+  database: warehouse.duckdb
+
+commits:
+  - overlay: commits/01-style-staging
+    message: "style: format stg_orders"
+  - overlay: commits/02-cents-normalization
+    message: "fix: normalize order amounts using cents convention from payments v2"
+    fault: true
+    author: "Priya Growth <priya@example.com>"
+  - overlay: commits/03-readme-oncall
+    message: "docs: add on-call notes to README"
+
+truth:
+  category: logic_bug
+  summary: >
+    The commit "fix: normalize order amounts using cents convention from
+    payments v2" multiplied amounts by 100 in stg_orders, inflating revenue
+    100x. Because fct_revenue is an incremental model, reverting the staging
+    code is not enough: the corrupted rows already persisted in the table are
+    never reprocessed on a normal run. The fix is to revert the multiplication
+    AND rebuild the incremental table (dbt build --full-refresh, i.e. a
+    backfill of the bad rows).
+  keywords_any:
+    - ["100", "cents"]
+    - ["full-refresh", "full refresh", "backfill", "rebuild", "incremental"]
+  culprit_commit_overlay: commits/02-cents-normalization
+  protected_paths:
+    - "data/raw/*"
+    - "dbt/tests/*"
+    - "dbt/models/staging/schema.yml"
+    - "dbt/models/marts/schema.yml"
+  verify:
+    - sql: "select count(*) from fct_revenue"
+      op: "=="
+      value: 3
+    - sql: "select round(sum(revenue), 2) from fct_revenue"
+      op: "between"
+      value: [450.74, 450.76]
+    - sql: "select sum(orders) from fct_revenue"
+      op: "=="
+      value: 8

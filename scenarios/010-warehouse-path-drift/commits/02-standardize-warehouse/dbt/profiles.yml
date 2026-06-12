@@ -1,0 +1,8 @@
+analytics:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # Standardized location so CI runners and local checkouts share a path.
+      path: /tmp/analytics_warehouse.duckdb
+      threads: 1

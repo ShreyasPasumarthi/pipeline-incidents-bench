@@ -1,0 +1,8 @@
+version: 2
+models:
+  - name: stg_signups
+    columns:
+      - name: user_id
+        data_tests: [not_null, unique]
+      - name: signup_date
+        data_tests: [not_null]

@@ -1,0 +1,45 @@
+id: "009-poisoned-numeric-format"
+title: "Vendor export adds thousands separators ('1,234.56'); amounts arrive as text and the cast explodes downstream"
+difficulty: medium
+tags: [source-data, no-git-cause, type-coercion, vendor, dbt, duckdb]
+
+pipeline:
+  run: run_pipeline.sh
+  database: warehouse.duckdb
+
+commits:
+  - overlay: commits/01-add-orders-count
+    message: "feat: add avg order value to fct_revenue"
+  - overlay: commits/02-style-staging
+    message: "style: format stg_orders"
+  - overlay: commits/03-readme-oncall
+    message: "docs: add on-call notes to README"
+
+truth:
+  category: source_data_change
+  summary: >
+    No code change caused this incident. The billing vendor's export for
+    2026-06-10 (data/landing/orders_2026-06-10.csv) formats large amounts with
+    thousands separators, e.g. "1,234.56". With union_by_name the amount column
+    is promoted to text across all files, and the cast to decimal in stg_orders
+    fails at build time with a conversion error (surfacing downstream in
+    fct_revenue). Fix: strip the comma before casting — replace(amount, ',', '')
+    — in dbt/models/staging/stg_orders.sql.
+  keywords_any:
+    - ["1,234.56", "comma", "thousands", "separator", "format"]
+    - ["landing", "vendor", "export", "upstream", "source file"]
+  culprit_commit_overlay: null
+  protected_paths:
+    - "data/landing/*"
+    - "dbt/models/staging/schema.yml"
+    - "dbt/models/marts/schema.yml"
+  verify:
+    - sql: "select count(*) from stg_orders"
+      op: "=="
+      value: 9
+    - sql: "select count(*) from fct_revenue"
+      op: "=="
+      value: 3
+    - sql: "select round(sum(revenue), 2) from fct_revenue"
+      op: "between"
+      value: [3694.79, 3694.81]

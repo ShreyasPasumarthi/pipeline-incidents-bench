@@ -1,0 +1,12 @@
+version: 2
+models:
+  - name: fct_orders
+    columns:
+      - name: order_id
+        data_tests: [not_null, unique]
+      - name: amount
+        data_tests: [not_null]
+      - name: status
+        data_tests:
+          - accepted_values:
+              values: [paid, refunded, shipped]

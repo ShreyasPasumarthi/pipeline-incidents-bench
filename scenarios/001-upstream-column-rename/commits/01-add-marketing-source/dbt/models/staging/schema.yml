@@ -1,0 +1,14 @@
+version: 2
+models:
+  - name: stg_signups
+    columns:
+      - name: user_id
+        data_tests: [not_null, unique]
+      - name: signup_date
+        data_tests: [not_null]
+  - name: stg_marketing_spend
+    columns:
+      - name: spend_date
+        data_tests: [not_null]
+      - name: spend
+        data_tests: [not_null]

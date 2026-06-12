@@ -1,0 +1,12 @@
+version: 2
+models:
+  - name: fct_revenue
+    columns:
+      - name: order_date
+        data_tests: [not_null, unique]
+      - name: revenue
+        data_tests: [not_null]
+  - name: dim_customers
+    columns:
+      - name: customer_id
+        data_tests: [not_null, unique]

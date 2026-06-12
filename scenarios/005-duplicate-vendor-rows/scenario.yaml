@@ -1,0 +1,45 @@
+id: "005-duplicate-vendor-rows"
+title: "Vendor double-exports a batch; duplicate order rows break uniqueness — no code change to blame"
+difficulty: easy
+tags: [source-data, no-git-cause, duplicates, vendor, dbt, duckdb]
+
+pipeline:
+  run: run_pipeline.sh
+  database: warehouse.duckdb
+
+commits:
+  - overlay: commits/01-ingest-logging
+    message: "feat: add row-count logging to ingest"
+  - overlay: commits/02-tidy-fct
+    message: "feat: add distinct customer count to fct_revenue"
+  - overlay: commits/03-readme-oncall
+    message: "docs: add on-call notes to README"
+
+truth:
+  category: source_data_change
+  summary: >
+    No code change caused this incident. The fulfillment vendor double-exported
+    a batch on 2026-06-10: the landing file data/landing/orders_2026-06-10.csv
+    contains exact duplicate rows for orders O5011 and O5012, so the unique test
+    on stg_orders.order_id fails. Fix: deduplicate in
+    dbt/models/staging/stg_orders.sql (select distinct), and flag the vendor
+    export upstream.
+  keywords_any:
+    - ["duplicate", "duplicated", "double", "dupes"]
+    - ["landing", "vendor", "export", "upstream", "source file"]
+  culprit_commit_overlay: null
+  protected_paths:
+    - "data/landing/*"
+    - "data/raw/*"
+    - "dbt/models/staging/schema.yml"
+    - "dbt/models/marts/schema.yml"
+  verify:
+    - sql: "select count(*) from stg_orders"
+      op: "=="
+      value: 14
+    - sql: "select count(*) from (select order_id from stg_orders group by 1 having count(*) > 1)"
+      op: "=="
+      value: 0
+    - sql: "select round(sum(revenue), 2) from fct_revenue"
+      op: "between"
+      value: [870.74, 870.76]

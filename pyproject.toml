@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pipeline-incidents-bench"
+version = "0.1.0"
+description = "Reproducible broken-data-pipeline scenarios with executable ground truth, for evaluating AI incident-response agents."
+authors = [{ name = "Shreyas Pasumarthi" }]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "dbt-core>=1.8",
+    "dbt-duckdb>=1.8",
+    "duckdb>=1.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+pib = "pib.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

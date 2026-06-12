@@ -1,0 +1,7 @@
+warehouse.duckdb
+*.duckdb.wal
+dbt/target/
+dbt/logs/
+logs/
+__pycache__/
+data/landing/

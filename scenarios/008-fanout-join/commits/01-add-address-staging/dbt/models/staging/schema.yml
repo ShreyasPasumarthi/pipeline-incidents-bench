@@ -1,0 +1,16 @@
+version: 2
+models:
+  - name: stg_orders
+    columns:
+      - name: order_id
+        data_tests: [not_null, unique]
+      - name: amount
+        data_tests: [not_null]
+  - name: stg_customers
+    columns:
+      - name: customer_id
+        data_tests: [not_null, unique]
+  - name: stg_customer_addresses
+    columns:
+      - name: address_id
+        data_tests: [not_null, unique]

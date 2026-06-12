@@ -1,0 +1,46 @@
+id: "004-broken-import-refactor"
+title: "Loader refactor renames sniff_and_load but misses the call site; ingestion dies with ImportError"
+difficulty: easy
+tags: [logic-bug, git-cause, ingestion, python, duckdb]
+
+pipeline:
+  run: run_pipeline.sh
+  database: warehouse.duckdb
+
+commits:
+  - overlay: commits/01-ingest-logging
+    message: "feat: add row-count logging to ingest"
+  - overlay: commits/02-generalize-loader
+    message: "refactor: generalize csv loader utility"
+    fault: true
+    author: "Marco Platform <marco@example.com>"
+  - overlay: commits/03-readme-oncall
+    message: "docs: add on-call notes to README"
+
+truth:
+  category: logic_bug
+  summary: >
+    The commit "refactor: generalize csv loader utility" renamed sniff_and_load
+    to load_csv in utils/csv_tools.py (and reordered its arguments) but did not
+    update the call site in ingest.py, so ingestion crashes with an ImportError
+    before anything loads. Fix: update ingest.py to import load_csv and call it
+    as load_csv(con, path, table) — or restore the old function name as an alias.
+  keywords_any:
+    - ["sniff_and_load", "load_csv"]
+    - ["rename", "renamed", "refactor"]
+    - ["import", "call site", "signature"]
+  culprit_commit_overlay: commits/02-generalize-loader
+  protected_paths:
+    - "data/raw/*"
+    - "dbt/models/staging/schema.yml"
+    - "dbt/models/marts/schema.yml"
+  verify:
+    - sql: "select count(*) from fct_daily_orders"
+      op: "=="
+      value: 4
+    - sql: "select sum(orders) from fct_daily_orders"
+      op: "=="
+      value: 12
+    - sql: "select round(sum(revenue), 2) from fct_daily_orders"
+      op: "between"
+      value: [266.23, 266.25]

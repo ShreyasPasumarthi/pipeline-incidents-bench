@@ -1,0 +1,46 @@
+id: "003-bad-join-refactor"
+title: "Innocent-looking 'perf' commit turns a left join into an inner join; guest orders silently dropped"
+difficulty: medium
+tags: [logic-bug, git-cause, silent-data-loss, dbt, duckdb]
+
+pipeline:
+  run: run_pipeline.sh
+  database: warehouse.duckdb
+
+commits:
+  - overlay: commits/01-add-order-status
+    message: "feat: add order_status to fct_orders"
+  - overlay: commits/02-simplify-joins
+    message: "perf: simplify fct_orders joins"
+    fault: true
+    author: "Marco Platform <marco@example.com>"
+  - overlay: commits/03-style-stg-customers
+    message: "style: lowercase keywords in stg_customers"
+
+truth:
+  category: logic_bug
+  summary: >
+    The commit "perf: simplify fct_orders joins" replaced the left join from
+    stg_orders to stg_customers with an inner join in
+    dbt/models/marts/fct_orders.sql. Orders with a null customer_id (guest
+    checkouts) were silently dropped from fct_orders, tripping the
+    assert_no_dropped_orders row-count parity test. Fix: restore the left join.
+  keywords_any:
+    - ["left join", "inner join", "join"]
+    - ["dropped", "guest", "missing", "null customer"]
+  culprit_commit_overlay: commits/02-simplify-joins
+  protected_paths:
+    - "data/raw/*"
+    - "dbt/tests/*"
+    - "dbt/models/staging/schema.yml"
+    - "dbt/models/marts/schema.yml"
+  verify:
+    - sql: "select count(*) from fct_orders"
+      op: "=="
+      value: 18
+    - sql: "select count(*) from fct_orders where region is null"
+      op: "=="
+      value: 4
+    - sql: "select round(sum(amount), 2) from fct_orders"
+      op: "between"
+      value: [1800.82, 1800.84]

@@ -1,0 +1,55 @@
+id: "007-compound-incident"
+title: "Two faults at once: vendor switches to amount_minor AND a 'perf' commit drops guest orders — fixing one is not enough"
+difficulty: hard
+tags: [compound, source-data, logic-bug, git-cause, no-git-cause, vendor, dbt, duckdb]
+
+pipeline:
+  run: run_pipeline.sh
+  database: warehouse.duckdb
+
+commits:
+  - overlay: commits/01-add-customer-dim
+    message: "feat: add customer dimension model"
+  - overlay: commits/02-simplify-joins
+    message: "perf: simplify fct_orders joins"
+    fault: true
+    author: "Marco Platform <marco@example.com>"
+  - overlay: commits/03-format-staging
+    message: "style: format staging models"
+
+truth:
+  category: [source_data_change, logic_bug]
+  summary: >
+    Two independent faults struck together. First, the payments vendor changed
+    the orders export on 2026-06-10: data/landing/orders_2026-06-10.csv carries
+    amount_minor (cents) instead of amount, so those rows load with null amount
+    and fail the not_null test — no code change caused that part. Second, the
+    commit "perf: simplify fct_orders joins" replaced the left join to
+    stg_customers with an inner join, silently dropping guest orders (null
+    customer_id) and tripping the row-count parity test once staging is fixed.
+    Fix both: coalesce(amount, amount_minor / 100.0) in stg_orders AND restore
+    the left join in fct_orders.
+  keywords_any:
+    - ["amount_minor", "cents", "minor units"]
+    - ["left join", "inner join", "join"]
+    - ["guest", "dropped", "null customer", "missing"]
+  culprit_commit_overlay: commits/02-simplify-joins
+  protected_paths:
+    - "data/landing/*"
+    - "data/raw/*"
+    - "dbt/tests/*"
+    - "dbt/models/staging/schema.yml"
+    - "dbt/models/marts/schema.yml"
+  verify:
+    - sql: "select count(*) from stg_orders where amount is null"
+      op: "=="
+      value: 0
+    - sql: "select count(*) from fct_orders"
+      op: "=="
+      value: 18
+    - sql: "select count(*) from fct_orders where region is null"
+      op: "=="
+      value: 3
+    - sql: "select round(sum(amount), 2) from fct_orders"
+      op: "between"
+      value: [2059.19, 2059.21]

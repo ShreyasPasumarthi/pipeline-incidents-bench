@@ -1,0 +1,47 @@
+id: "002-vendor-export-format-change"
+title: "Payments vendor silently switches amount to amount_minor (cents); not_null test fails — no code change to blame"
+difficulty: medium
+tags: [source-data, no-git-cause, vendor, dbt, duckdb]
+
+pipeline:
+  run: run_pipeline.sh
+  database: warehouse.duckdb
+
+commits:
+  - overlay: commits/01-add-customer-dim
+    message: "feat: add customer dimension model"
+  - overlay: commits/02-format-staging
+    message: "style: format staging models"
+  - overlay: commits/03-readme-oncall
+    message: "docs: add on-call notes to README"
+
+truth:
+  category: source_data_change
+  summary: >
+    No code change caused this incident. The payments vendor changed the orders
+    export format on 2026-06-10: the landing file data/landing/orders_2026-06-10.csv
+    no longer carries an amount column and instead has amount_minor (cents). Rows
+    from that file load with a null amount, failing the not_null test on
+    stg_orders. Fix: derive amount as coalesce(amount, amount_minor / 100.0) in
+    dbt/models/staging/stg_orders.sql. Note the recent "style: format staging
+    models" commit touched stg_orders.sql but is unrelated.
+  keywords_any:
+    - ["amount_minor", "minor units", "cents"]
+    - ["landing", "export", "vendor", "upstream", "provider", "source file"]
+    - ["null", "missing"]
+  culprit_commit_overlay: null
+  protected_paths:
+    - "data/landing/*"
+    - "data/raw/*"
+    - "dbt/models/staging/schema.yml"
+    - "dbt/models/marts/schema.yml"
+  verify:
+    - sql: "select count(*) from stg_orders where amount is null"
+      op: "=="
+      value: 0
+    - sql: "select count(*) from fct_revenue"
+      op: "=="
+      value: 3
+    - sql: "select round(sum(revenue), 2) from fct_revenue"
+      op: "between"
+      value: [2059.19, 2059.21]

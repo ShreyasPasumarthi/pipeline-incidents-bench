@@ -1,0 +1,51 @@
+id: "008-fanout-join"
+title: "Shipping-city enrichment joins all addresses, not just shipping; orders fan out into duplicates"
+difficulty: medium
+tags: [logic-bug, git-cause, fanout, grain, dbt, duckdb]
+
+pipeline:
+  run: run_pipeline.sh
+  database: warehouse.duckdb
+
+commits:
+  - overlay: commits/01-add-address-staging
+    message: "feat: add customer addresses staging model"
+  - overlay: commits/02-enrich-shipping-city
+    message: "feat: enrich fct_orders with shipping city"
+    fault: true
+    author: "Dana Engineer <dana@example.com>"
+  - overlay: commits/03-readme-oncall
+    message: "docs: add on-call notes to README"
+
+truth:
+  category: logic_bug
+  summary: >
+    The commit "feat: enrich fct_orders with shipping city" joined
+    stg_customer_addresses on customer_id without restricting to
+    address_type = 'shipping'. Customers with both a shipping and a billing
+    address fan out — each of their orders appears once per address — breaking
+    the one-row-per-order grain and failing the unique test on
+    fct_orders.order_id. Fix: filter the address join to shipping addresses
+    only (or deduplicate to one address per customer).
+  keywords_any:
+    - ["fan", "duplicate", "duplicated", "grain", "one row per"]
+    - ["address"]
+    - ["shipping", "address_type", "filter", "dedup"]
+  culprit_commit_overlay: commits/02-enrich-shipping-city
+  protected_paths:
+    - "data/raw/*"
+    - "dbt/models/staging/schema.yml"
+    - "dbt/models/marts/schema.yml"
+  verify:
+    - sql: "select count(*) from fct_orders"
+      op: "=="
+      value: 12
+    - sql: "select count(*) from (select order_id from fct_orders group by 1 having count(*) > 1)"
+      op: "=="
+      value: 0
+    - sql: "select round(sum(amount), 2) from fct_orders"
+      op: "between"
+      value: [429.99, 430.01]
+    - sql: "select count(*) from fct_orders where shipping_city is not null"
+      op: "=="
+      value: 12

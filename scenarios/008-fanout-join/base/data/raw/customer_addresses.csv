@@ -1,0 +1,10 @@
+address_id,customer_id,address_type,city
+A001,C001,shipping,San Jose
+A002,C001,billing,Palo Alto
+A003,C002,shipping,Brooklyn
+A004,C003,shipping,Dublin
+A005,C003,billing,Cork
+A006,C004,shipping,Oakland
+A007,C005,shipping,Singapore
+A008,C006,shipping,Boston
+A009,C006,billing,Cambridge

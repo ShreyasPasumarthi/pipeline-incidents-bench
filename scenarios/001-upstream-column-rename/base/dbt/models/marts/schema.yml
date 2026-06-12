@@ -1,0 +1,8 @@
+version: 2
+models:
+  - name: fct_daily_signups
+    columns:
+      - name: signup_date
+        data_tests: [not_null]
+      - name: signups
+        data_tests: [not_null]

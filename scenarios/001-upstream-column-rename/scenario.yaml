@@ -1,0 +1,45 @@
+id: "001-upstream-column-rename"
+title: "Upstream export renames user_id to customer_id; staging model breaks"
+difficulty: easy
+tags: [schema-drift, git-cause, dbt, duckdb]
+
+pipeline:
+  run: run_pipeline.sh
+  database: warehouse.duckdb
+
+commits:
+  - overlay: commits/01-add-marketing-source
+    message: "feat: add marketing spend source and staging model"
+  - overlay: commits/02-rename-export-schema
+    message: "chore: sync signups export with tracking schema v2"
+    fault: true
+    author: "Priya Growth <priya@example.com>"
+  - overlay: commits/03-readme-oncall
+    message: "docs: add on-call notes to README"
+
+truth:
+  category: schema_change
+  summary: >
+    The commit "chore: sync signups export with tracking schema v2" renamed the
+    user_id column to customer_id in the signups export (data/raw/signups.csv and
+    etl/extract_config.yml, both owned by the growth team). stg_signups still
+    selects user_id, so the staging view fails to build with a binder error.
+    Fix: select customer_id as user_id in dbt/models/staging/stg_signups.sql.
+  keywords_any:
+    - ["customer_id"]
+    - ["user_id"]
+    - ["rename", "renamed", "schema"]
+  culprit_commit_overlay: commits/02-rename-export-schema
+  # schema.yml is deliberately NOT protected here: renaming the column forward
+  # through staging and its tests is a legitimate alternative fix. The hidden
+  # verify assertions still catch test deletion or data tampering.
+  protected_paths:
+    - "data/raw/*"
+    - "etl/*"
+  verify:
+    - sql: "select count(*) from fct_daily_signups"
+      op: ">="
+      value: 5
+    - sql: "select sum(signups) from fct_daily_signups"
+      op: "=="
+      value: 20

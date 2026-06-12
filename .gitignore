@@ -1,0 +1,10 @@
+.venv/
+.env
+__pycache__/
+*.egg-info/
+.pib_runs/
+*.duckdb
+*.duckdb.wal
+dbt/target/
+dbt/logs/
+logs/

@@ -1,0 +1,48 @@
+id: "010-warehouse-path-drift"
+title: "A 'standardize warehouse location' chore points dbt at an empty database; ingest and dbt no longer agree where the warehouse lives"
+difficulty: medium
+tags: [infra, config-drift, git-cause, dbt, duckdb]
+
+pipeline:
+  run: run_pipeline.sh
+  database: warehouse.duckdb
+
+commits:
+  - overlay: commits/01-add-revenue
+    message: "feat: add largest_order to fct_daily_orders"
+  - overlay: commits/02-standardize-warehouse
+    message: "chore: standardize warehouse location for CI runners"
+    fault: true
+    author: "Marco Platform <marco@example.com>"
+  - overlay: commits/03-readme-oncall
+    message: "docs: add on-call notes to README"
+
+truth:
+  category: infra_failure
+  summary: >
+    The commit "chore: standardize warehouse location for CI runners" changed
+    dbt/profiles.yml to point at /tmp/analytics_warehouse.duckdb, but ingest.py
+    still writes the repo-local warehouse.duckdb (the documented convention in
+    the README and .gitignore). dbt now connects to an empty database and fails
+    with a catalog error: the raw.orders source table does not exist. Fix:
+    revert the profiles.yml path so dbt and ingestion agree on the repo-local
+    warehouse location.
+  keywords_any:
+    - ["profiles"]
+    - ["path", "location", "/tmp", "warehouse.duckdb"]
+    - ["revert", "point", "restore", "local", "agree", "mismatch"]
+  culprit_commit_overlay: commits/02-standardize-warehouse
+  protected_paths:
+    - "data/raw/*"
+    - "dbt/models/staging/schema.yml"
+    - "dbt/models/marts/schema.yml"
+  verify:
+    - sql: "select count(*) from fct_daily_orders"
+      op: "=="
+      value: 3
+    - sql: "select sum(orders) from fct_daily_orders"
+      op: "=="
+      value: 8
+    - sql: "select round(sum(revenue), 2) from fct_daily_orders"
+      op: "between"
+      value: [194.99, 195.01]
