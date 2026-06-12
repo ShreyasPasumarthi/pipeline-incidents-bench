@@ -56,7 +56,71 @@ Cross-tier observations:
 - Both misses were judgment failures, not capability failures: the agent could
   read everything and edit anything, and still chose a remediation a senior
   data engineer would reject in review.
-- Caveat for all results: the harness hands every agent a curated incident
-  context (failing logs, dbt artifacts, git history, data samples). Collecting
-  that context automatically in a real production environment is its own hard
-  problem — and the next build target.
+
+## Curated vs collector context (the real test)
+
+The scores above hand the agent a context bundle the harness assembled with
+full knowledge of the repo layout. The open question for a real product is
+whether that bundle can be reconstructed automatically from raw workspace
+state. So we ran the same Cursor agent again, but replaced the curated bundle
+with the output of `pipemend collect` — a read-only collector that sees only
+the broken repo and the run command, never the scenario's ground truth
+(`pib run --context-source collector`).
+
+| Scenario | Curated | Collector | Δ |
+|---|---|---|---|
+| 001 rename | 85% | **100%** | +15 |
+| 002 format change | 85% | 85% | 0 |
+| 003 bad join | 100% | 100% | 0 |
+| 004 broken import | 100% | 100% | 0 |
+| 005 duplicates | 100% | 100% | 0 |
+| 006 backfill | 100% | 100% | 0 |
+| 007 compound | 70% | **85%** | +15 |
+| 008 fan-out | 100% | 100% | 0 |
+| 009 number format | 100% | 100% | 0 |
+| 010 path drift | 35% | **85%** | +50 |
+| **Overall** | **88%** | **96%** | **+8** |
+| **Pipelines fixed** | **9/10** | **10/10** | **+1** |
+
+Collector context **matched or beat** curated context on every scenario. The
+reason is the product thesis in miniature: the curated bundle is raw evidence
+and leaves all inference to the agent, whereas `pipemend collect` pre-digests
+that evidence into *leads* — a score-ranked suspect commit (with confidence and
+reasons) and cross-signal detections like config drift and vendor header drift.
+
+Where that pre-digestion moved the needle:
+
+- **010 path drift: 35% → 85%, and it's the durable result.** This is the only
+  scenario where the curated agent failed to *fix* the pipeline — it pointed
+  `ingest.py` at the drifted `/tmp` path, going green the wrong way. The
+  collector emitted an explicit signal: *"dbt profiles.yml points at
+  /tmp/analytics_warehouse.duckdb, but the most recently written warehouse file
+  is the repo-local warehouse.duckdb — ingestion and dbt may disagree about
+  where the warehouse lives."* With that lead, the agent reverted profiles.yml —
+  the correct fix — and `fix_verified` (execution-graded against hidden
+  assertions, not opinion) passed. Same model, same repo, different context:
+  the collector's cross-signal detection steered the agent off the
+  green-but-wrong remediation.
+- **001 rename: 85% → 100%** and **007 compound: 70% → 85%** are attribution
+  gains — the collector named the culprit sha and got the category right where
+  the curated agent had hedged or mislabeled. These are real but smaller, and a
+  single LLM run carries enough variance that a ±one-check swing on an
+  individual scenario is within noise. The robust, mechanistically-explained
+  win is 010.
+
+Honest caveats:
+
+- An *opinionated* bundle that names a top suspect can mislead as well as guide.
+  On 002 the collector correctly hedged ("low confidence — a data fault with no
+  code cause is also plausible") and the agent made the same category miss it
+  made under curated context: the collector neither helped nor hurt. The risk
+  that a confidently-wrong verdict drags an agent to a worse answer is real, and
+  measuring it across more scenarios is exactly what this benchmark exists for.
+- These are single runs of a non-deterministic agent. Treat the per-scenario
+  deltas as directional and the aggregate (plus the execution-graded 010 flip)
+  as the signal.
+
+The takeaway for the thesis: the agent's raw fixing ability was already high;
+the lever that turned 88% into 96% and 9/10 fixes into 10/10 was **the quality
+of the assembled context, not the model.** That is the layer the collector
+owns — and it is now real code, not a roadmap item.

@@ -48,6 +48,22 @@ python3 -m venv .venv && .venv/bin/pip install -e .
 .venv/bin/pib run --agent "python3 agents/example/agent.py"   # your agent here
 ```
 
+### Context source
+
+By default the harness assembles the incident bundle itself (`--context-source
+curated`). To instead have it built from raw workspace state by the
+[Pipemend](../pipemend) collector — the way it would be in production — pass
+`--context-source collector`:
+
+```bash
+.venv/bin/pib run --agent "<cmd>" --context-source collector
+```
+
+The collector receives only the broken repo and the run command, never the
+scenario's ground truth. It must be discoverable as a sibling `pipemend` repo
+with a built `.venv`, on `PATH`, or via the `PIPEMEND_CMD` env var. See
+[RESULTS.md](RESULTS.md) for the curated-vs-collector comparison.
+
 ## Agent protocol
 
 Any executable works. The harness calls:
@@ -60,7 +76,9 @@ Any executable works. The harness calls:
   (your edits ARE the fix). Rerun `bash run_pipeline.sh` as often as you like.
 - `context` — the incident bundle: failing run stdout/stderr, parsed dbt
   `run_results`, `git log -p` of recent commits, file tree, and head samples
-  of every data file (including landing files that live outside git).
+  of every data file (including landing files that live outside git). Its exact
+  shape depends on `--context-source` (curated bundle vs Pipemend collector
+  bundle); agents should treat it as opaque incident evidence.
 - `report.json` — your diagnosis:
 
 ```json
