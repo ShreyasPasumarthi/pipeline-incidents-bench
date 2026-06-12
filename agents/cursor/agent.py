@@ -19,6 +19,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 from cursor_sdk import Agent, AgentOptions, CursorAgentError, LocalAgentOptions
@@ -93,22 +94,33 @@ def main() -> None:
         context=json.dumps(context, indent=1),
     )
 
+    # The SDK bridge occasionally fails to spawn (e.g. a transient empty
+    # --tool-callback-auth-token). That is harness infrastructure, not agent
+    # ability, so retry before letting it contaminate the score.
     report = fallback_report("unknown")
-    try:
-        result = Agent.prompt(
-            prompt,
-            AgentOptions(
-                api_key=api_key,
-                model=model,
-                local=LocalAgentOptions(cwd=str(workspace)),
-            ),
-        )
-        print(f"agent: cursor run status={result.status}", file=sys.stderr)
-        if result.status != "finished":
-            report = fallback_report(f"run status {result.status}")
-    except CursorAgentError as err:
-        print(f"agent: startup failed: {err}", file=sys.stderr)
-        report = fallback_report(f"startup failed: {err}")
+    attempts = 3
+    for attempt in range(1, attempts + 1):
+        try:
+            result = Agent.prompt(
+                prompt,
+                AgentOptions(
+                    api_key=api_key,
+                    model=model,
+                    local=LocalAgentOptions(cwd=str(workspace)),
+                ),
+            )
+            print(f"agent: cursor run status={result.status}", file=sys.stderr)
+            if result.status != "finished":
+                report = fallback_report(f"run status {result.status}")
+            break
+        except CursorAgentError as err:
+            print(
+                f"agent: startup failed (attempt {attempt}/{attempts}): {err}",
+                file=sys.stderr,
+            )
+            report = fallback_report(f"startup failed after {attempt} attempts: {err}")
+            if attempt < attempts:
+                time.sleep(5 * attempt)
 
     # Collect the report the agent left in the workspace (and remove it so it
     # doesn't pollute the worktree diff the harness scores).

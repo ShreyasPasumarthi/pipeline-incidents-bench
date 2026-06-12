@@ -116,11 +116,28 @@ Honest caveats:
   made under curated context: the collector neither helped nor hurt. The risk
   that a confidently-wrong verdict drags an agent to a worse answer is real, and
   measuring it across more scenarios is exactly what this benchmark exists for.
-- These are single runs of a non-deterministic agent. Treat the per-scenario
-  deltas as directional and the aggregate (plus the execution-graded 010 flip)
-  as the signal.
+
+## Variance study (5 trials per scenario per mode, 100 scored runs)
+
+The table above is a single run of a non-deterministic agent, so we repeated
+the full matrix 5 times per mode ([VARIANCE.md](VARIANCE.md) has per-scenario
+spreads and a methods note):
+
+| Mode | Overall (mean of trial means) | Spread | Verified fixes |
+|---|---|---|---|
+| curated | 89.3% | [88–90%], s=1.3 pts | 45/50 (90%) — 010 failed in all 5 trials |
+| collector | 95.8% | [92–97%], s=2.0 pts | **50/50 (100%)** — every pipeline, every trial |
+
+The single-run conclusions held up:
+
+- **010 (path drift) is a systematic flip, not a lucky roll**: 35% in all five
+  curated trials (the agent always goes green the wrong way), 97% mean with the
+  collector's config-drift signal.
+- The remaining per-scenario noise lives in attribution checks (category,
+  culprit commit) on 001/007, not in fix correctness.
 
 The takeaway for the thesis: the agent's raw fixing ability was already high;
-the lever that turned 88% into 96% and 9/10 fixes into 10/10 was **the quality
-of the assembled context, not the model.** That is the layer the collector
-owns — and it is now real code, not a roadmap item.
+the lever that turned a 90% verified-fix rate into 100% and made 10/10 fixes
+reproducible across every trial was **the quality of the assembled context,
+not the model.** That is the layer the collector owns — and it is now real
+code, not a roadmap item.

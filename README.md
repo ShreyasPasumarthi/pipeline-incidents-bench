@@ -140,6 +140,28 @@ Hard tier — these punish shallow "patch until green" strategies:
 | `009-poisoned-numeric-format` | vendor adds thousands separators (`"1,234.56"`); cast explodes | failure surfaces in the mart, cause is in a landing file; no git cause |
 | `010-warehouse-path-drift` | "standardize warehouse location" chore points dbt at an empty database | the *tempting* fix (align ingest to the new path) goes green but violates the repo's documented convention — hidden assertions catch it |
 
+## Related work & positioning
+
+The "AI agents for incident response" space is active, but it splits cleanly by
+*layer* and by *which part of the loop* a tool actually owns:
+
+- **General software/infra observability** — e.g. [Superlog](https://superlog.sh/)
+  (open-source agentic telemetry: ingests OpenTelemetry traces/logs/metrics,
+  groups noisy signals into incidents). These operate on running-service
+  telemetry and are strongest at *detection and triage*; autonomous *fixing* is
+  early (the open default agent records an incident summary).
+- **Data observability** — Monte Carlo, Anomalo, Metaplane: detect data-quality
+  and freshness anomalies in the warehouse. Strong at alerting; remediation is
+  left to humans.
+
+This benchmark is deliberately orthogonal to both. It does not detect incidents
+— it assumes one already fired — and it measures the step everyone else stops
+short of: **can an agent actually fix it, verified by execution?** The scope is
+the *data layer* (dbt/warehouse/git), and the grading is reproducible ground
+truth rather than an LLM judge or a human's opinion. To our knowledge no public
+benchmark measures verified remediation for data-pipeline incidents; that gap is
+the reason this exists.
+
 ## Roadmap
 
 - 30–50 scenarios across schema drift, data anomalies, logic bugs, dependency
@@ -147,6 +169,8 @@ Hard tier — these punish shallow "patch until green" strategies:
 - Heavy tier: dockerized Airflow + Postgres + Spark scenarios
 - LLM-agent baselines (Claude, GPT) with published scorecards
 - LLM judge for root-cause free text (keyword groups are v0)
+- Noisy multi-signal incidents: scenarios where the failing run is one of many
+  correlated alerts, to test triage/grouping, not just single-fault repair
 
 ## License
 
